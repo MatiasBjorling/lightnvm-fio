@@ -1408,7 +1408,7 @@ fi
 if test "$rbd" = "yes" ; then
   output_sym "CONFIG_RBD"
 fi
-if test "$lv" = "yes" ; then
+if test "$kv" = "yes" ; then
   output_sym "CONFIG_KV"
 fi
 if test "$setvbuf" = "yes" ; then
