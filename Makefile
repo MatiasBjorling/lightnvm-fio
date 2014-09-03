@@ -87,6 +87,9 @@ endif
 ifdef CONFIG_RBD
   SOURCE += engines/rbd.c
 endif
+ifdef CONFIG_KV
+  SOURCE += engines/kv.c
+endif
 ifndef CONFIG_STRSEP
   SOURCE += lib/strsep.c
 endif
