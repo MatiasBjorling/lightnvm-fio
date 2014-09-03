@@ -33,7 +33,7 @@ struct __attribute__((packed)) vsl_kv_cmd
 
 #define VSL_IOC_MAGIC 'O'
 #define VSL_IOCTL_ID		_IO(VSL_IOC_MAGIC, 0x40)
-#define VSL_IOCTL_KV		_IOWR(VSL_IOC_MAGIC, 0x40, struct vsl_kv_cmd)
+#define VSL_IOCTL_KV		_IOWR(VSL_IOC_MAGIC, 0x50, struct vsl_kv_cmd)
 
 enum vsl_error {
 	VSLKV_ERR_OPEN = 1,
