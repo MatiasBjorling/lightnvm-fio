@@ -52,7 +52,12 @@ static int fio_kv_queue(struct thread_data *td, struct io_u *io_u)
 	struct kvio_data *kd = td->io_ops->data;
 	int ret;
 
-	ret = ioctl(f->fd, VSL_IOCTL_KV, kd->cmd);
+	if (io_u->ddir == DDIR_WRITE)
+		kd->cmd.opcode = VSL_KV_PUT;
+	else
+		kd->cmd.opcode = VSL_KV_GET;
+
+	ret = ioctl(f->fd, VSL_IOCTL_KV, &kd->cmd);
 	if (ret < 0)
 		return ret;
 
@@ -69,15 +74,15 @@ static int fio_kv_init(struct thread_data *td)
 	sprintf(kd->key, "LIGHTNVM FTW");
 
 	kd->value = malloc(sizeof(char) * 4096);
-	memset(kd->value, 0xFF, 4096);
+	memset(kd->value, 0xFE, 4096);
 
-	kd->cmd.opcode = VSL_KV_GET;
-	kd->cmd.key_len = 12;
+	kd->cmd.key_len = 13;
 	kd->cmd.key_addr = (uint64_t) kd->key;
 	kd->cmd.val_len = 4096;
 	kd->cmd.val_addr = (uint64_t) kd->value;
 
 	td->io_ops->data = kd;
+
 	return 0;
 }
 
