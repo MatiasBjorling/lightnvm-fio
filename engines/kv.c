@@ -24,9 +24,9 @@ enum vsl_kv_opcode
 struct __attribute__((packed)) vsl_kv_cmd
 {
 	uint8_t		opcode;
-	uint8_t		res[3];
-	uint16_t	key_len;
-	uint16_t	val_len;
+	uint8_t		res[7];
+	uint32_t	key_len;
+	uint32_t	val_len;
 	uint64_t	key_addr;
 	uint64_t	val_addr;
 };
@@ -43,21 +43,26 @@ enum vsl_error {
 struct kvio_data {
 	struct vsl_kv_cmd cmd;
 	void *key;
-	void *value;
 };
 
 static int fio_kv_queue(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
 	struct kvio_data *kd = td->io_ops->data;
+	struct vsl_kv_cmd cmd;
 	int ret;
 
 	if (io_u->ddir == DDIR_WRITE)
-		kd->cmd.opcode = VSL_KV_PUT;
+		cmd.opcode = VSL_KV_PUT;
 	else
-		kd->cmd.opcode = VSL_KV_GET;
+		cmd.opcode = VSL_KV_GET;
 
-	ret = ioctl(f->fd, VSL_IOCTL_KV, &kd->cmd);
+	cmd.key_len = kd->cmd.key_len;
+	cmd.key_addr = kd->cmd.key_addr;
+	cmd.val_len = (uint32_t)io_u->xfer_buflen;
+	cmd.val_addr = (uint64_t)io_u->xfer_buf;
+
+	ret = ioctl(f->fd, VSL_IOCTL_KV, &cmd);
 	if (ret < 0)
 		return ret;
 
@@ -73,13 +78,8 @@ static int fio_kv_init(struct thread_data *td)
 	kd->key = malloc(sizeof(char) * 13);
 	sprintf(kd->key, "LIGHTNVM FTW");
 
-	kd->value = malloc(sizeof(char) * 4096);
-	memset(kd->value, 0xFE, 4096);
-
 	kd->cmd.key_len = 13;
 	kd->cmd.key_addr = (uint64_t) kd->key;
-	kd->cmd.val_len = 4096;
-	kd->cmd.val_addr = (uint64_t) kd->value;
 
 	td->io_ops->data = kd;
 
