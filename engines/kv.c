@@ -71,11 +71,16 @@ static int fio_kv_queue(struct thread_data *td, struct io_u *io_u)
 
 static int fio_kv_init(struct thread_data *td)
 {
-	struct kvio_data *kd;
+	struct kvio_data *kd = NULL;
 
 	kd = malloc(sizeof(struct kvio_data));
+	if (!kd)
+		goto err;
 
 	kd->key = malloc(sizeof(char) * 13);
+	if (!kd->key)
+		goto err;
+
 	sprintf(kd->key, "LIGHTNVM FTW");
 
 	kd->cmd.key_len = 13;
@@ -84,12 +89,24 @@ static int fio_kv_init(struct thread_data *td)
 	td->io_ops->data = kd;
 
 	return 0;
+err:
+	free(kd);
+	return -ENOMEM;
+}
+
+static void fio_kv_cleanup(struct thread_data *td)
+{
+	struct kvio_data *kd = td->io_ops->data;
+
+	free(kd->key);
+	free(kd);
 }
 
 static struct ioengine_ops ioengine = {
 	.name		= "kv",
 	.version	= FIO_IOOPS_VERSION,
 	.init		= fio_kv_init,
+	.cleanup	= fio_kv_cleanup,
 	.queue		= fio_kv_queue,
 	.open_file	= generic_open_file,
 	.close_file	= generic_close_file,
