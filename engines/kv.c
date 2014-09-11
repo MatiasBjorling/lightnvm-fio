@@ -24,7 +24,8 @@ enum vsl_kv_opcode
 struct __attribute__((packed)) vsl_kv_cmd
 {
 	uint8_t		opcode;
-	uint8_t		res[7];
+	uint8_t		errcode;
+	uint8_t		res[6];
 	uint32_t	key_len;
 	uint32_t	val_len;
 	uint64_t	key_addr;
@@ -57,14 +58,16 @@ static int fio_kv_queue(struct thread_data *td, struct io_u *io_u)
 	else
 		cmd.opcode = VSL_KV_GET;
 
+	cmd.errcode = 0;
 	cmd.key_len = kd->cmd.key_len;
 	cmd.key_addr = kd->cmd.key_addr;
 	cmd.val_len = (uint32_t)io_u->xfer_buflen;
 	cmd.val_addr = (uint64_t)io_u->xfer_buf;
 
 	ret = ioctl(f->fd, VSL_IOCTL_KV, &cmd);
-	if (ret < 0)
+	if (ret < 0 && !cmd.errcode) {
 		return ret;
+	}
 
 	return FIO_Q_COMPLETED;
 }
