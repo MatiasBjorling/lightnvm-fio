@@ -1165,7 +1165,7 @@ echo "Rados Block Device engine     $rbd"
 ##########################################
 # check for kv
 kv="no"
-if test "$enable_kv" == "yes"; then
+if test "$enable_kv" = "yes"; then
   kv="yes"
 fi
 echo "Key-value store engine        $kv"
