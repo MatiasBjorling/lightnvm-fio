@@ -1446,6 +1446,20 @@ if compile_prog "" "" "mtd"; then
 fi
 echo "MTD                           $mtd"
 
+##########################################
+# lightnvm probe
+lightnvm="no"
+cat > $TMPC << EOF
+int main(int argc, char **argv)
+{
+  return 0;
+}
+EOF
+if compile_prog "" "" "lightnvm"; then
+    lightnvm="yes"
+fi
+echo "lightnvm                      $lightnvm"
+
 # Check if we have lex/yacc available
 yacc="no"
 yacc_is_bison="no"
@@ -1725,6 +1739,9 @@ if test "$libhdfs" = "yes" ; then
  fi
 if test "$mtd" = "yes" ; then
   output_sym "CONFIG_MTD"
+fi
+if test "$lightnvm" = "yes" ; then
+  output_sym "CONFIG_LIGHTNVM"
 fi
 if test "$arith" = "yes" ; then
   output_sym "CONFIG_ARITHMETIC"
