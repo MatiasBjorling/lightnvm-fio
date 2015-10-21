@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <pthread.h>
 
 #include "dft_ioctl.h"
 #include "../fio.h"
@@ -18,42 +19,36 @@
 struct fio_lightnvm_data {
 	int pg_size;
 	struct dft_block vblk[64];
-	int state;
 };
 
-static struct fio_lightnvm_data d;
+struct fio_lightnvm_data d;
 
 static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
-	struct dft_block *blk = &d.vblk[td->thread_number - 1];
+	struct dft_block *blk = &d.vblk[td->subjob_number];
 	unsigned long long base = blk->bppa * 4096;
 	int ret;
 
 	fio_ro_check(td, io_u);
 
-	if ((io_u->buflen % 64 * 1024) != 0) {
-		io_u->error = ENOTSUP;
-		td_verror(td, io_u->error,
-					"size not support for backing device");
-		return 0;
-	}
-
 	if (io_u->ddir == DDIR_READ) {
 //		printf("read: %lu %lu %u\n", io_u->buflen, io_u->offset, td->thread_number);
 		ret = pread(f->fd, io_u->buf, io_u->buflen,
 							base + io_u->offset);
-		if (ret < 0)
-			printf("read failed\n");
 	} else if (io_u->ddir == DDIR_WRITE) {
+		if ((io_u->buflen % 64 * 1024) != 0) {
+			io_u->error = ENOTSUP;
+			td_verror(td, io_u->error,
+						"size not support for backing device");
+			return 0;
+		}
+
 //		printf("write: %lu %lu %u\n", io_u->buflen, io_u->offset, td->thread_number);
 		ret = pwrite(f->fd, io_u->buf, io_u->buflen,
 							base + io_u->offset);
 		if (ret < 0)
 			printf("write failed\n");
-	} else {
-		io_u->error = ENOTSUP;
-		td_verror(td, io_u->error, "operation not supported on lnvm");
 	}
 
 	return FIO_Q_COMPLETED;
@@ -63,22 +58,27 @@ static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 {
 	struct dft_block *blk;
 	int ret;
+	int chnl_id;
+	int lun_id;
 
 	ret = generic_open_file(td, f);
 	if (ret)
 		return ret;
 
-	blk = &d.vblk[td->thread_number -1];
+	blk = &d.vblk[td->subjob_number];
 
-	if (blk->id == 0) {
-		blk->vlun_id = td->thread_number - 1;
+	if (blk->id == 0 && td->o.td_ddir == TD_DDIR_WRITE) {
+		chnl_id = ((td->subjob_number) % 16) * 4;
+		lun_id = (td->subjob_number) / 16;
+
+		blk->vlun_id = chnl_id + lun_id;
 
 		ret = ioctl(f->fd, LNVM_GET_BLOCK, blk);
 		if (ret) {
 			td_verror(td, ret, "block could not be get for vlun");
 			goto err_close;
 		}
-//		printf("thread: %u blk %lu get\n", td->thread_number - 1, blk->id);
+		printf("thread: %u %u vlun: %u blk %lu get\n", td->thread_number - 1, td->subjob_number, blk->vlun_id, blk->id);
 	}
 
 	return 0;
@@ -93,18 +93,18 @@ err_close:
 
 static int fio_lightnvm_close_file(struct thread_data *td, struct fio_file *f)
 {
-	struct dft_block *blk = &d.vblk[td->thread_number - 1];
+	struct dft_block *blk = &d.vblk[td->subjob_number];
 	int ret;
 
-	if (blk->id != -1 && d.state == 1) {
-//		printf("thread: %u blk %lu put\n", td->thread_number - 1,
-//								blk->id);
+	if (blk->id != 0 && td_trim(td)) {
+		printf("thread: %u blk %lu put\n", td->subjob_number,
+								blk->id);
 		ret = ioctl(f->fd, LNVM_PUT_BLOCK, blk);
 		if (ret)
 			td_verror(td, ret, "block could not be get for vlun");
-	}
 
-	d.state++;
+		blk->id = 0;
+	}
 
 	return generic_close_file(td, f);
 }
