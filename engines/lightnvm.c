@@ -26,13 +26,18 @@ struct fio_lightnvm_data d;
 static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
-	struct dft_block *blk = &d.vblk[td->subjob_number];
-	unsigned long long base = blk->bppa * 4096;
+	struct dft_block *blk;
+	unsigned long long base;
 	int ret;
 
-	fio_ro_check(td, io_u);
+	blk = &d.vblk[td->subjob_number];
+	if (td->groupid == 1 && td->o.td_ddir == TD_DDIR_WRITE)
+		blk = &d.vblk[td->subjob_number+8];
 
-	if (io_u->ddir == DDIR_READ) {
+	fio_ro_check(td, io_u);
+	base = blk->bppa * 4096;
+
+	if (io_u->ddir == DDIR_READ){
 //		printf("read: %lu %lu %u\n", io_u->buflen, io_u->offset, td->thread_number);
 		ret = pread(f->fd, io_u->buf, io_u->buflen,
 							base + io_u->offset);
@@ -60,16 +65,25 @@ static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 	int ret;
 	int chnl_id;
 	int lun_id;
+	int job_id;
 
 	ret = generic_open_file(td, f);
 	if (ret)
 		return ret;
 
-	blk = &d.vblk[td->subjob_number];
+	printf("groupid: %u subjob: %u\n", td->groupid, td->subjob_number);
 
+	if (td->groupid == 0)
+		job_id = td->subjob_number;
+	else if (td->groupid == 1)
+		job_id = td->subjob_number + 8;
+	else
+		return 0;
+
+	blk = &d.vblk[job_id];
 	if (blk->id == 0 && td->o.td_ddir == TD_DDIR_WRITE) {
-		chnl_id = ((td->subjob_number) % 16) * 4;
-		lun_id = (td->subjob_number) / 16;
+		chnl_id = ((job_id) % 16) * 4;
+		lun_id = (job_id) / 16;
 
 		blk->vlun_id = chnl_id + lun_id;
 
@@ -78,7 +92,7 @@ static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 			td_verror(td, ret, "block could not be get for vlun");
 			goto err_close;
 		}
-		printf("thread: %u %u vlun: %u blk %lu get\n", td->thread_number - 1, td->subjob_number, blk->vlun_id, blk->id);
+		printf("job id: %u vlun: %u blk %lu get\n", job_id, blk->vlun_id, blk->id);
 	}
 
 	return 0;
