@@ -26,46 +26,46 @@ struct fio_lightnvm_data d;
 static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 {
 	struct fio_file *f = io_u->file;
-	struct dft_block *blk = &d.vblk[td->subjob_number];
-	unsigned long long base = blk->bppa * 4096;
+	//struct dft_block *blk = &d.vblk[td->subjob_number];
+	struct dft_ioctl_io io;
 	int ret;
+	struct ppa_addr ppa;
+
+	memset(&io, 0, sizeof(io));
+	ppa.ppa = 0;
+	ppa.g.blk = 1;
+
+	io.opcode = 0;
+	io.flags = 0;
+	io.nppas = 1;
+	io.ppas = ppa.ppa;
+	io.addr = (uint64_t)io_u->buf;
+	io.data_len = io_u->buflen;
 
 	fio_ro_check(td, io_u);
 
-	if (io_u->ddir == DDIR_READ) {
-//		printf("read: %lu %lu %u\n", io_u->buflen, io_u->offset, td->thread_number);
-		ret = pread(f->fd, io_u->buf, io_u->buflen,
-							base + io_u->offset);
+	ret = ioctl(f->fd, LNVM_PIO, &io);
+	if (ret)
+		printf("fail: %u\n", ret);
+/*	if (io_u->ddir == DDIR_READ) {
 	} else if (io_u->ddir == DDIR_WRITE) {
-		if ((io_u->buflen % 64 * 1024) != 0) {
-			io_u->error = ENOTSUP;
-			td_verror(td, io_u->error,
-						"size not support for backing device");
-			return 0;
-		}
-
-//		printf("write: %lu %lu %u\n", io_u->buflen, io_u->offset, td->thread_number);
-		ret = pwrite(f->fd, io_u->buf, io_u->buflen,
-							base + io_u->offset);
-		if (ret < 0)
-			printf("write failed\n");
-	}
+	}*/
 
 	return FIO_Q_COMPLETED;
 }
 
 static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 {
-	struct dft_block *blk;
+	//struct dft_block *blk;
 	int ret;
-	int chnl_id;
-	int lun_id;
+	/*int chnl_id;
+	int lun_id;*/
 
 	ret = generic_open_file(td, f);
 	if (ret)
 		return ret;
 
-	blk = &d.vblk[td->subjob_number];
+/*	blk = &d.vblk[td->subjob_number];
 
 	if (blk->id == 0 && td->o.td_ddir == TD_DDIR_WRITE) {
 		chnl_id = ((td->subjob_number) % 16) * 4;
@@ -80,23 +80,23 @@ static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 		}
 		printf("thread: %u %u vlun: %u blk %lu get\n", td->thread_number - 1, td->subjob_number, blk->vlun_id, blk->id);
 	}
-
+*/
 	return 0;
 
-err_close:
+/*err_close:
 	{
 		int fio_unused ret;
 		ret = generic_close_file(td, f);
 		return 1;
-	}
+	}*/
 }
 
 static int fio_lightnvm_close_file(struct thread_data *td, struct fio_file *f)
 {
-	struct dft_block *blk = &d.vblk[td->subjob_number];
-	int ret;
+	//struct dft_block *blk = &d.vblk[td->subjob_number];
+//	int ret;
 
-	if (blk->id != 0 && td_trim(td)) {
+/*	if (blk->id != 0 && td_trim(td)) {
 		printf("thread: %u blk %lu put\n", td->subjob_number,
 								blk->id);
 		ret = ioctl(f->fd, LNVM_PUT_BLOCK, blk);
@@ -105,6 +105,7 @@ static int fio_lightnvm_close_file(struct thread_data *td, struct fio_file *f)
 
 		blk->id = 0;
 	}
+	*/
 
 	return generic_close_file(td, f);
 }
