@@ -28,17 +28,34 @@ static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 	struct fio_file *f = io_u->file;
 	//struct dft_block *blk = &d.vblk[td->subjob_number];
 	struct dft_ioctl_io io;
-	int ret;
-	struct ppa_addr ppa;
+	int ret, i;
+	struct ppa_addr ppa, *ppas = NULL;
 
 	memset(&io, 0, sizeof(io));
 	ppa.ppa = 0;
 	ppa.g.blk = 1;
 
-	io.opcode = 0;
 	io.flags = 0;
-	io.nppas = 1;
-	io.ppas = ppa.ppa;
+	if (io_u->ddir == DDIR_WRITE) {
+		io.opcode = 1;
+		ppas = malloc(16 * sizeof(uint64_t));
+
+		ppa.ppa = 0;
+		ppa.g.blk = 1;
+
+		for (i = 0; i < 16; i++) {
+			ppa.g.pl = i % 4;
+			ppa.g.blk = (i / 4) + 1;
+			ppas[i] = ppa;
+		}
+		io.ppas = (uint64_t)ppas;
+		io.nppas = 16;
+	} else {
+		io.opcode = 0;
+		io.ppas = ppa.ppa;
+		io.nppas = 1;
+	}
+
 	io.addr = (uint64_t)io_u->buf;
 	io.data_len = io_u->buflen;
 
@@ -47,10 +64,8 @@ static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 	ret = ioctl(f->fd, LNVM_PIO, &io);
 	if (ret)
 		printf("fail: %u\n", ret);
-/*	if (io_u->ddir == DDIR_READ) {
-	} else if (io_u->ddir == DDIR_WRITE) {
-	}*/
 
+	free(ppas);
 	return FIO_Q_COMPLETED;
 }
 
