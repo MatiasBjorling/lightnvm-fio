@@ -3,27 +3,9 @@
 
 #include <stdint.h>
 
-#define LNVM_PUT_BLOCK			21525
-#define LNVM_GET_BLOCK			21526
-#define LNVM_PIO			12345
-
-typedef unsigned long long sector_t;
-
-struct dft_lun_info {
-	unsigned long n_vblocks;
-	unsigned long n_pages_per_blk;
-};
-
-struct dft_block {
-	unsigned long id;
-	unsigned long owner_id;
-	unsigned long nppas;
-	unsigned long ppa_bitmap;
-	sector_t bppa;
-	void *priv;
-	unsigned int vlun_id;
-	uint8_t flags;
-};
+#define LNVM_GET_BLOCK	0xc0104c40
+#define LNVM_PUT_BLOCK	0xc0104c41
+#define LNVM_PIO	0xc0404c42
 
 struct dft_ioctl_io
 {
@@ -65,5 +47,15 @@ struct ppa_addr {
 	};
 };
 
+struct dft_ioctl_vblk {
+	uint64_t ppa;
+	uint16_t flags;
+	uint16_t rsvd[3];
+};
+
+struct dft_block {
+	struct ppa_addr ppa;
+	unsigned int nppas;
+};
 
 #endif //_DFT_IOCTL_H_
