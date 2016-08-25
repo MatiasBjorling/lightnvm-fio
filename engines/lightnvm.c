@@ -49,20 +49,33 @@ static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 		}
 		io.ppas = (uint64_t)ppas;
 		io.nppas = 16;
+		io.flags = 0x2;
 
 		/* next 64k will go to next page */
 		blk->ppa.g.pg++;
 	} else if (io_u->ddir == DDIR_READ) {
-		unsigned long long sect = io_u->offset >> 12;
-
+		unsigned long long sec_offset = io_u->offset >> 12;
+		int len = io_u->buflen >> 12;
+		io.nppas = len;
 		io.opcode = 0;
-		ppa.g.pg = sect / 16;
-		ppa.g.pl = (sect % 16) / 4;
-		ppa.g.sec = sect % 4;
-	/*	printf("offset %llu %u %u %u\n", io_u->offset >> 12, ppa.g.pg, ppa.g.pl,
-				ppa.g.sec);*/
-		io.ppas = ppa.ppa;
-		io.nppas = 1;
+
+		if (len == 1) {
+			ppa.g.pg = sec_offset / 16;
+			ppa.g.pl = (sec_offset % 16) / 4;
+			ppa.g.sec = sec_offset % 4;
+		/*	printf("offset %llu %u %u %u\n", io_u->offset >> 12, ppa.g.pg, ppa.g.pl,
+					ppa.g.sec);*/
+			io.ppas = ppa.ppa;
+		} else {
+			for (i = 0; i < 16; i++) {
+				ppa.g.sec = i % 4;
+				ppa.g.pl = i / 4;
+				ppa.g.ch = 0;
+				ppas[i] = ppa;
+			}
+			io.ppas = (uint64_t)ppas;
+			io.flags = 0x2;
+		}
 	} else
 		return FIO_Q_COMPLETED;
 
@@ -74,6 +87,11 @@ static int fio_lightnvm_queue(struct thread_data *td, struct io_u *io_u)
 	ret = ioctl(f->fd, LNVM_PIO, &io);
 	if (ret)
 		printf("fail: %u\n", ret);
+
+	if (io.result) {
+		printf("result: %u\n", io.result);
+		printf("status: %llu\n", (unsigned long long)io.status);
+	}
 
 	return FIO_Q_COMPLETED;
 }
@@ -94,20 +112,20 @@ static int fio_lightnvm_open_file(struct thread_data *td, struct fio_file *f)
 		struct ppa_addr ppa;
 
 		ppa.ppa = 0;
-		ppa.g.ch = ((td->subjob_number) % 16) * 4;
+		ppa.g.ch = ((td->subjob_number) % 16);
 		ppa.g.lun = (td->subjob_number) / 16;
 
 		vblk.ppa = ppa.ppa;
 		vblk.flags = 0;
 
-		printf("thread: %u %u ch: %u lun: %u try get\n", td->thread_number - 1, td->subjob_number, ppa.g.ch, ppa.g.lun);
+		//printf("thread: %u %u ch: %u lun: %u try get\n", td->thread_number - 1, td->subjob_number, ppa.g.ch, ppa.g.lun);
 		ret = ioctl(f->fd, LNVM_GET_BLOCK, &vblk);
 		if (ret) {
 			td_verror(td, ret, "block could not be get for vlun");
 			goto err_close;
 		}
 		blk->ppa.ppa = vblk.ppa;
-		printf("thread: %u %u ch: %u lun: %u blk: %u got\n", td->thread_number - 1, td->subjob_number, blk->ppa.g.ch, blk->ppa.g.lun, blk->ppa.g.blk);
+		//printf("thread: %u %u ch: %u lun: %u blk: %u got\n", td->thread_number - 1, td->subjob_number, blk->ppa.g.ch, blk->ppa.g.lun, blk->ppa.g.blk);
 	}
 
 	return 0;
@@ -130,10 +148,10 @@ static int fio_lightnvm_close_file(struct thread_data *td, struct fio_file *f)
 		vblk.ppa = blk->ppa.ppa;
 		vblk.flags = 0;
 
-		printf("thread: %u ch: %u lun: %u blk: %u put\n",
+		/*printf("thread: %u ch: %u lun: %u blk: %u put\n",
 						td->subjob_number,
 						blk->ppa.g.ch, blk->ppa.g.lun,
-						blk->ppa.g.blk);
+						blk->ppa.g.blk);*/
 		ret = ioctl(f->fd, LNVM_PUT_BLOCK, &vblk);
 		if (ret)
 			td_verror(td, ret, "block could not be put for vlun");
