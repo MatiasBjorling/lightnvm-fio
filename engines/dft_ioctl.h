@@ -53,9 +53,9 @@ struct dft_ioctl_vblk {
 	uint16_t rsvd[3];
 };
 
-struct dft_block {
-	struct ppa_addr ppa;
+struct dft_thread {
 	unsigned int nppas;
+	struct ppa_addr *ppas;
 };
 
 #endif //_DFT_IOCTL_H_
